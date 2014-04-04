@@ -74,5 +74,6 @@ public class Lock {
 
 	private KThread lockHolder = null;
 
-	private ThreadQueue waitQueue = ThreadedKernel.scheduler.newThreadQueue(true);
+	private ThreadQueue waitQueue = ThreadedKernel.scheduler
+			.newThreadQueue(true);
 }
