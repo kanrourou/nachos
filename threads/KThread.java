@@ -1,6 +1,7 @@
 package nachos.threads;
 
 import nachos.machine.*;
+import nachos.userprog.UserProcess;
 
 /**
  * A KThread is a thread that can be used to execute Nachos kernel code. Nachos
@@ -59,6 +60,7 @@ public class KThread {
 		}
 		else {
 			readyQueue = ThreadedKernel.scheduler.newThreadQueue(false);
+			joinQueue=ThreadedKernel.scheduler.newThreadQueue(false);
 			readyQueue.acquire(this);
 
 			currentThread = this;
@@ -202,6 +204,10 @@ public class KThread {
 		toBeDestroyed = currentThread;
 
 		currentThread.status = statusFinished;
+		KThread thread=joinQueue.nextThread();
+		if(thread!=null){
+			thread.ready();
+		}
 
 		sleep();
 	}
@@ -284,6 +290,19 @@ public class KThread {
 		Lib.debug(dbgThread, "Joining to thread: " + toString());
 
 		Lib.assertTrue(this != currentThread);
+		if(this.status==statusFinished){
+			return;
+		}
+		
+		boolean inStatus=Machine.interrupt().disable();
+		if(KThread.currentThread.isJoined);
+		else{
+			joinQueue.waitForAccess(currentThread);
+			isJoined=true;
+			sleep();
+		}
+
+		Machine.interrupt().restore(inStatus);
 
 	}
 
@@ -412,10 +431,31 @@ public class KThread {
 	 */
 	public static void selfTest() {
 		Lib.debug(dbgThread, "Enter KThread.selfTest");
+		//KThread thread=new KThread(new PingTest(0)).setName("forked thread");
+//		thread.fork();
+//		thread.join();
+//     	new PingTest(2).run();
+		//ThreadTests.joinTest1();
+		//ThreadTests.joinTest2();
+		//ThreadTests.joinTest3();
+     	//ThreadTests.conditionTest1();
+     	//ThreadTests.alarmTest1();
+		//ThreadTests.priorityTest1();
+		//ThreadTests.priorityTest2();
+     	//ThreadTests.communicatorTest3();
+		//ThreadTests.boatTest(3, 0);
+		//LotteryScheduler.selfTest();
+		//PriorityScheduler.selfTest();
+		//LotteryScheduler.selfTest();
+//		UserProcess up=new UserProcess();
+//		String[] s=new String[2];
+//		s[0]="1";
+//		s[1]="hehe";
+//		
+//		boolean b=up.execute("echo.coff", s);
+//		System.out.println(b);
 
-		new KThread(new PingTest(1)).setName("forked thread").fork();
-		new PingTest(0).run();
-	}
+     	}
 
 	private static final char dbgThread = 't';
 
@@ -442,6 +482,8 @@ public class KThread {
 	 * the ready queue and not running).
 	 */
 	private int status = statusNew;
+	
+	private boolean isJoined=false;
 
 	private String name = "(unnamed thread)";
 
@@ -459,6 +501,8 @@ public class KThread {
 	private static int numCreated = 0;
 
 	private static ThreadQueue readyQueue = null;
+	
+	private static ThreadQueue joinQueue=null;
 
 	private static KThread currentThread = null;
 

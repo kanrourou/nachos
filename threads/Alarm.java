@@ -1,5 +1,7 @@
 package nachos.threads;
 
+import java.util.PriorityQueue;
+
 import nachos.machine.*;
 
 /**
@@ -29,8 +31,15 @@ public class Alarm {
 	 * should be run.
 	 */
 	public void timerInterrupt() {
-		KThread.currentThread().yield();
+		boolean inStatus=Machine.interrupt().disable();
+
+		while(!waitQueue.isEmpty()&&waitQueue.peek().wakeTime<=Machine.timer().getTime()){
+			waitQueue.poll().thread.ready();
+		}
+		KThread.yield();
+		Machine.interrupt().restore(inStatus);
 	}
+
 
 	/**
 	 * Put the current thread to sleep for at least <i>x</i> ticks, waking it up
@@ -47,7 +56,31 @@ public class Alarm {
 	public void waitUntil(long x) {
 		// for now, cheat just to get something working (busy waiting is bad)
 		long wakeTime = Machine.timer().getTime() + x;
-		while (wakeTime > Machine.timer().getTime())
-			KThread.yield();
+		KThread thread=KThread.currentThread();
+		WaitingThread waitThread=new WaitingThread(thread,wakeTime);
+		boolean inStatus=Machine.interrupt().disable();
+		waitQueue.add(waitThread);
+		KThread.sleep();
+		Machine.interrupt().restore(inStatus);
+
 	}
+
+	private class WaitingThread implements Comparable<WaitingThread>{
+		KThread thread;
+		long wakeTime;
+
+		public WaitingThread(KThread thread, long wakeTime){
+			this.thread=thread;
+			this.wakeTime=wakeTime;
+		}
+
+		public int compareTo(WaitingThread thread){
+			if(this.wakeTime<thread.wakeTime)return -1;
+			else if(this.wakeTime>thread.wakeTime)return 1;
+			else return 0;
+
+		}
+
+	}
+	private PriorityQueue<WaitingThread> waitQueue=new PriorityQueue<WaitingThread>();
 }
