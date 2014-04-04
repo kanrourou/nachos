@@ -1,8 +1,5 @@
-nachos
-======
-
-OS project
-===========
+nachos OS project
+=================
 
 Project 1:Build the threading system
           implementation:Thread Join,Condition Variable,Alarm,Synchronous Communication,Priority Scheduling,Boat                 problem
