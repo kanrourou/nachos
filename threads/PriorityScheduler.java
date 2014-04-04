@@ -1,10 +1,10 @@
 package nachos.threads;
 
 import nachos.machine.*;
+import nachos.threads.LotteryScheduler.LotteryQueue;
+import nachos.threads.LotteryScheduler.LotteryThreadState;
 
-import java.util.TreeSet;
-import java.util.HashSet;
-import java.util.Iterator;
+import java.util.*;
 
 /**
  * A scheduler that chooses threads based on their priorities.
@@ -41,7 +41,7 @@ public class PriorityScheduler extends Scheduler {
 	 * @return a new priority thread queue.
 	 */
 	public ThreadQueue newThreadQueue(boolean transferPriority) {
-		return new PriorityQueue(transferPriority);
+		return new ThreadPriorityQueue(transferPriority);
 	}
 
 	public int getPriority(KThread thread) {
@@ -128,8 +128,8 @@ public class PriorityScheduler extends Scheduler {
 	/**
 	 * A <tt>ThreadQueue</tt> that sorts threads by priority.
 	 */
-	protected class PriorityQueue extends ThreadQueue {
-		PriorityQueue(boolean transferPriority) {
+	protected class ThreadPriorityQueue extends ThreadQueue {
+		ThreadPriorityQueue(boolean transferPriority) {
 			this.transferPriority = transferPriority;
 		}
 
@@ -146,7 +146,13 @@ public class PriorityScheduler extends Scheduler {
 		public KThread nextThread() {
 			Lib.assertTrue(Machine.interrupt().disabled());
 			// implement me
-			return null;
+			ThreadState nextthreadstate = pickNextThread();
+			if(nextthreadstate != null)
+			{
+				return nextthreadstate.thread;
+			}
+			else
+				return null;
 		}
 
 		/**
@@ -157,7 +163,42 @@ public class PriorityScheduler extends Scheduler {
 		 */
 		protected ThreadState pickNextThread() {
 			// implement me
-			return null;
+			//return null;
+			/*
+			if (PQueue.isEmpty())
+				return null;
+							
+			return PQueue.poll();
+			*/
+			
+			
+			int max = -1;
+			if(PQueue.isEmpty())
+				return null;
+			
+			ThreadState threads = PQueue.peek();
+			
+			for(ThreadState ths: PQueue)
+			{
+				int eff =ths.getEffectivePriority();
+				if(eff > max)
+				{
+					threads = ths;
+					max = eff;
+				}
+				else if(eff == max)
+				{
+					if(ths.age >= threads.age)
+					{
+						threads = ths;
+						max = eff;
+					}
+
+				}
+			}
+			
+			PQueue.remove(threads);
+			return threads;
 		}
 
 		public void print() {
@@ -170,6 +211,11 @@ public class PriorityScheduler extends Scheduler {
 		 * threads to the owning thread.
 		 */
 		public boolean transferPriority;
+		
+		protected ThreadState resourceHolder=null;
+		
+		protected LinkedList<ThreadState> PQueue = new LinkedList<ThreadState>();
+		
 	}
 
 	/**
@@ -179,17 +225,25 @@ public class PriorityScheduler extends Scheduler {
 	 * 
 	 * @see nachos.threads.KThread#schedulingState
 	 */
-	protected class ThreadState {
+	protected class ThreadState  {
 		/**
 		 * Allocate a new <tt>ThreadState</tt> object and associate it with the
 		 * specified thread.
 		 * 
 		 * @param thread the thread this state belongs to.
 		 */
+		public ThreadState()
+		{
+			
+		}
 		public ThreadState(KThread thread) {
+			
 			this.thread = thread;
+			//age=Machine.timer().getTime();
+			//priority=priorityDefault;
+			//effectivePriority=priority;
 
-			setPriority(priorityDefault);
+			//setPriority(priorityDefault);
 		}
 
 		/**
@@ -208,8 +262,10 @@ public class PriorityScheduler extends Scheduler {
 		 */
 		public int getEffectivePriority() {
 			// implement me
-			return priority;
+			//return priority;
+			return this.effectivePriority;
 		}
+		
 
 		/**
 		 * Set the priority of the associated thread to the specified value.
@@ -221,8 +277,40 @@ public class PriorityScheduler extends Scheduler {
 				return;
 
 			this.priority = priority;
-
+			
 			// implement me
+			this.effectivePriority = this.priority;
+			CorrectPriority();
+
+		}
+		
+		private void CorrectPriority() {
+			if(this.HoldingQueues != null)
+			{
+				if(!this.HoldingQueues.isEmpty())
+				{
+					Iterator<ThreadPriorityQueue> TPQueueNT =this.HoldingQueues.iterator();			
+					while(TPQueueNT.hasNext())
+					{
+						ThreadState HoldResource=TPQueueNT.next().resourceHolder;
+						
+						int size = HoldResource.WaitingTSQueue.size();
+						int max =0;
+						for(int i=0; i<size;i++)
+						{
+							int eff = HoldResource.WaitingTSQueue.get(i).effectivePriority;
+							if (max <eff)
+								max = eff;
+				
+						}
+						HoldResource.effectivePriority=Math.max(HoldResource.priority, max);
+						
+						HoldResource.CorrectPriority();
+					}
+				}
+			}
+
+
 		}
 
 		/**
@@ -237,8 +325,24 @@ public class PriorityScheduler extends Scheduler {
 		 * 
 		 * @see nachos.threads.ThreadQueue#waitForAccess
 		 */
-		public void waitForAccess(PriorityQueue waitQueue) {
+		public void waitForAccess(ThreadPriorityQueue waitQueue) {
 			// implement me
+			this.age = Machine.timer().getTime();
+			waitQueue.PQueue.add(this);
+			
+			if(waitQueue.transferPriority==true)
+			{
+				HoldingQueues.add(waitQueue);
+				if(waitQueue.resourceHolder != null)
+				{
+					waitQueue.resourceHolder.WaitingTSQueue.add(this);
+					//waitQueue.resourceHolder.CorrectPriority();
+					CorrectPriority();
+				}
+
+			}
+			
+			
 		}
 
 		/**
@@ -251,14 +355,31 @@ public class PriorityScheduler extends Scheduler {
 		 * @see nachos.threads.ThreadQueue#acquire
 		 * @see nachos.threads.ThreadQueue#nextThread
 		 */
-		public void acquire(PriorityQueue waitQueue) {
+		public void acquire(ThreadPriorityQueue waitQueue) {
 			// implement me
+			
+			if(waitQueue.transferPriority)
+			{
+				waitQueue.resourceHolder = this;
+				
+			}
+			
 		}
 
 		/** The thread with which this object is associated. */
 		protected KThread thread;
 
 		/** The priority of the associated thread. */
-		protected int priority;
+		//protected int priority;
+		protected long age = Machine.timer().getTime();
+		/** The priority of the associated thread. */
+		protected int priority = priorityDefault;
+		
+		protected int effectivePriority =priorityDefault;
+		
+		protected LinkedList<ThreadPriorityQueue> HoldingQueues = new LinkedList<ThreadPriorityQueue>();
+
+		protected LinkedList<ThreadState> WaitingTSQueue = new LinkedList<ThreadState>();		
+	
 	}
 }
