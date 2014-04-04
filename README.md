@@ -1,7 +1,7 @@
 nachos OS project
 =================
 
-Project 1:Build the threading system
+Project 1:Build the threading system\n
           implementation:Thread Join,Condition Variable,Alarm,Synchronous Communication,Priority Scheduling,Boat                 problem
           
 Project 2:Multiprogramming
